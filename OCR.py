@@ -1,7 +1,7 @@
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
-import easyocr
+import pytesseract
 import cv2
 import numpy as np
 from PIL import Image
@@ -9,11 +9,8 @@ import io
 
 def extract_text_from_image(image):
     """
-    画像から文字を抽出する関数
+    画像から文字を抽出する関数（Tesseract使用）
     """
-    # EasyOCRリーダーを初期化（日本語と英語に対応）
-    reader = easyocr.Reader(['ja', 'en'])
-    
     # 画像をOpenCV形式に変換
     if isinstance(image, str):
         # ファイルパスの場合
@@ -22,32 +19,22 @@ def extract_text_from_image(image):
         # PIL Imageの場合
         img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
     
-    # 文字認識を実行
-    results = reader.readtext(img)
+    # 文字認識を実行（日本語対応）
+    text = pytesseract.image_to_string(img, lang='jpn+eng')
     
-    # 結果を整理
+    # 結果を整理（EasyOCRと同じ形式に合わせる）
     extracted_texts = []
-    for (bbox, text, confidence) in results:
-        extracted_texts.append({
-            'text': text,
-            'confidence': confidence,
-            'bbox': bbox
-        })
+    lines = text.strip().split('\n')
+    
+    for i, line in enumerate(lines):
+        if line.strip():  # 空行でない場合
+            extracted_texts.append({
+                'text': line.strip(),
+                'confidence': 0.8,  # Tesseractは信頼度を返さないので仮の値
+                'bbox': [[0, i*20], [100, i*20], [100, (i+1)*20], [0, (i+1)*20]]  # 仮の座標
+            })
     
     return extracted_texts
-
-def filter_text_by_pattern(texts, pattern):
-    """
-    抽出されたテキストから特定のパターンにマッチするものをフィルタリング
-    """
-    import re
-    filtered_texts = []
-    
-    for item in texts:
-        if re.search(pattern, item['text']):
-            filtered_texts.append(item)
-    
-    return filtered_texts
 
 def filter_numeric_with_billion(texts):
     """
@@ -55,7 +42,7 @@ def filter_numeric_with_billion(texts):
     """
     import re
     filtered_texts = []
-    unique_numbers = set()  # 重複除去用
+    unique_numbers = set()
     
     # 「実力:」から始まる数字のパターン
     pattern = r'実力:\s*(\d+(?:\.\d+)?)'
@@ -64,7 +51,6 @@ def filter_numeric_with_billion(texts):
         match = re.search(pattern, item['text'])
         if match:
             try:
-                # 数字のみを抽出
                 numeric_value = float(match.group(1))
                 unique_numbers.add(numeric_value)
             except ValueError:
@@ -73,7 +59,6 @@ def filter_numeric_with_billion(texts):
     # 降順でソートしてリストに変換
     sorted_numbers = sorted(unique_numbers, reverse=True)
     
-    # 結果を辞書のリストに変換
     for number in sorted_numbers:
         filtered_texts.append({
             'text': str(number)

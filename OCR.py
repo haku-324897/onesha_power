@@ -2,7 +2,6 @@ import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
 import pytesseract
-import cv2
 import numpy as np
 from PIL import Image
 import io
@@ -65,3 +64,4 @@ def filter_numeric_with_billion(texts):
         })
     
     return filtered_texts
+
